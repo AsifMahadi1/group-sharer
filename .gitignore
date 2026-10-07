@@ -1,0 +1,17 @@
+# Secrets — NEVER commit
+config.json
+userbot.session
+userbot.session-journal
+*.session
+*.session-journal
+
+# Runtime / logs
+bot.log
+*.log
+__pycache__/
+*.pyc
+*.pyo
+
+# Local database (contains group list + settings)
+data.db
+*.db
