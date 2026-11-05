@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Auto Log · Group Sharer Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <span class="eyebrow">Scheduler</span>
+    <h1>Auto Log</h1>
+    <p class="muted">অটো-পোস্ট রাউন্ডের ইতিহাস ও মোট ফলাফল।</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="{{ url_for('settings') }}">Auto Settings</a>
+  </div>
+</div>
+
+<section class="stat-grid stat-grid-3">
+  <article class="stat-card card">
+    <span class="stat-label">Rounds</span>
+    <strong class="stat-value">{{ summary['rounds'] if summary else 0 }}</strong>
+  </article>
+  <article class="stat-card card">
+    <span class="stat-label">Total Sent</span>
+    <strong class="stat-value success-text">{{ summary['sent'] if summary else 0 }}</strong>
+  </article>
+  <article class="stat-card card">
+    <span class="stat-label">Total Failed</span>
+    <strong class="stat-value danger-text">{{ summary['failed'] if summary else 0 }}</strong>
+  </article>
+</section>
+
+{% if multi_user %}
+<section class="card">
+  <form method="get" action="{{ url_for('auto_log') }}" class="search-row">
+    <select name="user" aria-label="Filter by user">
+      <option value="">All users</option>
+      {% for user in users %}
+        <option value="{{ user['user_id'] }}" {% if filter_user == user['user_id'] %}selected{% endif %}>{{ user['first_name'] or user['username'] or user['user_id'] }} ({{ user['user_id'] }})</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+    {% if filter_user %}<a class="btn btn-ghost" href="{{ url_for('auto_log') }}">Clear</a>{% endif %}
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>Rounds</h2>
+      <p class="muted">{{ total }} টি রাউন্ড · Page {{ page }} / {{ pages }}</p>
+    </div>
+  </div>
+
+  {% if runs %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            {% if multi_user %}<th>User</th>{% endif %}
+            <th>Trigger</th>
+            <th>Started</th>
+            <th>Finished</th>
+            <th>Duration</th>
+            <th class="num">Total</th>
+            <th class="num">Sent</th>
+            <th class="num">Failed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in runs %}
+          <tr>
+            <td class="muted">{{ run['id'] }}</td>
+            {% if multi_user %}<td class="nowrap">{{ run['first_name'] or run['username'] or run['user_id'] }}<br><span class="muted mono">{{ run['user_id'] }}</span></td>{% endif %}
+            <td><span class="badge badge-info">{{ run['trigger'] }}</span></td>
+            <td class="nowrap">{{ run['started_at']|fmt_ts }}</td>
+            <td class="nowrap">{{ run['finished_at']|fmt_ts }}</td>
+            <td>{{ (run['finished_at'] - run['started_at'])|duration }}</td>
+            <td class="num">{{ run['total'] }}</td>
+            <td class="num success-text">{{ run['sent'] }}</td>
+            <td class="num danger-text">{{ run['failed'] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pages > 1 %}
+    <nav class="pagination" aria-label="Auto log pages">
+      {% if page > 1 %}
+        <a class="btn btn-ghost btn-small" href="{{ page_url(1) }}">First</a>
+        <a class="btn btn-secondary btn-small" href="{{ page_url(page - 1) }}">Previous</a>
+      {% endif %}
+      <span class="page-indicator">Page {{ page }} of {{ pages }}</span>
+      {% if page < pages %}
+        <a class="btn btn-secondary btn-small" href="{{ page_url(page + 1) }}">Next</a>
+        <a class="btn btn-ghost btn-small" href="{{ page_url(pages) }}">Last</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  {% else %}
+    <div class="empty-state">এখনো কোনো অটো রাউন্ড চলে নি।</div>
+  {% endif %}
+</section>
+{% endblock %}

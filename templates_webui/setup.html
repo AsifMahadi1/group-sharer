@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Setup · Group Sharer Admin{% endblock %}
+{% block content %}
+<section class="auth-wrap">
+  <div class="auth-card card">
+    <div class="auth-heading">
+      <span class="eyebrow">First visit</span>
+      <h1>WebUI পাসওয়ার্ড সেট করুন</h1>
+      <p class="muted">এই প্যানেল শুধু একটি পাসওয়ার্ড দিয়ে সুরক্ষিত। পাসওয়ার্ডটি scrypt হ্যাশ করে <code>settings</code> টেবিলে সেভ হবে।</p>
+    </div>
+
+    {% if not first_run %}
+      <div class="notice">ইতিমধ্যে পাসওয়ার্ড সেট করা আছে। <a href="{{ url_for('login') }}">লগইন করুন</a>।</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('setup') }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">
+        <span>পাসওয়ার্ড</span>
+        <input type="password" name="password" minlength="6" required autocomplete="new-password" autofocus>
+        <small>কমপক্ষে ৬ অক্ষর।</small>
+      </label>
+      <label class="field">
+        <span>পাসওয়ার্ড আবার দিন</span>
+        <input type="password" name="confirm" minlength="6" required autocomplete="new-password">
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">সেটআপ সম্পন্ন করুন</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

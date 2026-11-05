@@ -37,6 +37,29 @@
 
 > 💡 মেনু বাটনে (`/menu`) "🤖 অটো-পোস্ট" বাটনও আছে — সেখান থেকেও সব কাজ করা যায়।
 
+## WebUI (অ্যাডমিন প্যানেল)
+
+ব্রাউজার থেকে গ্রুপ, শেয়ার লগ, অটো-পোস্ট ও সেটিংস ম্যানেজ করার জন্য আলাদা Flask প্যানেল আছে।
+এটি বটের একই `data.db` পড়ে, কিন্তু বট প্রসেসকে স্পর্শ করে না।
+
+```bash
+chmod +x run_webui.sh
+./run_webui.sh          # অথবা: python3.8 webui.py
+```
+
+- ঠিকানা: **http://127.0.0.1:8017** (শুধু localhost; বাইরে এক্সপোজ করতে SSH tunnel ব্যবহার করুন)
+- প্রথমবার খুললে `/setup` পেজে একটি পাসওয়ার্ড সেট করতে হবে
+  (scrypt হ্যাশ হিসেবে `settings` টেবিলের `user_id=0`, key `webui_password_hash`-এ সেভ হয়)
+- পেজগুলো: **Dashboard**, **Groups** (user filter / search / single add / bulk add / delete / CSV-JSON import-export),
+  **Share Log** (status, group, user, date filter + pagination), **Auto Log**, **Settings**
+- নতুন multi-user DB-তে অটো সেটিংস (`auto_msg`, `auto_min_hour`, `auto_max_hour`, `auto_enabled`)
+  প্রতি ইউজারের `user_state` টেবিলে থাকে; পুরোনো DB-তে সেগুলো `settings`-এ থাকে।
+  Settings পেজে ইউজার সিলেক্ট করে সেই ইউজারের মান এডিট করা যায়; টোকেন/সেশন/হ্যাশ ঢাকা থাকে
+- "Trigger share round now" বাটন আছে, কিন্তু বটে এখনো আলাদা manual trigger নেই —
+  তাই এটি "not supported yet" মেসেজ দেখায়
+
+> WebUI আলাদা প্রসেসে চলে, তাই বট চালু থাকা অবস্থাতেও নিরাপদে ব্যবহার করা যায়।
+
 ## সেটআপ
 ```bash
 cd /root/agents/personal/workspace/group-sharer
@@ -96,6 +119,10 @@ group-sharer/
 ├── auto.py          # অটো-পোস্ট সিস্টেম (সেটিংস, র‍্যান্ডম ইন্টারভাল, ফরম্যাট)
 ├── engine.py        # ইউজারবট ইঞ্জিন (Telethon)
 ├── db.py            # SQLite ডাটাবেস
+├── webui.py         # WebUI (Flask admin panel)
+├── templates_webui/ # WebUI HTML টেমপ্লেট
+├── static_webui/    # WebUI CSS
+├── run_webui.sh     # WebUI স্টার্টার
 ├── test_auto.py     # অটো-পোস্ট লজিক টেস্ট
 ├── test_integration.py # শেয়ার ও scheduler ইন্টিগ্রেশন টেস্ট
 ├── test_checkgroups.py  # /checkgroups ✅/➕ মার্কিং টেস্ট

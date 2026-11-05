@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Group Sharer Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <span class="eyebrow">Overview</span>
+    <h1>Dashboard</h1>
+    <p class="muted">গ্রুপ, আজকের শেয়ার এবং অটো-পোস্টের সর্বশেষ অবস্থা এক নজরে।</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-primary" href="{{ url_for('groups') }}">Manage Groups</a>
+  </div>
+</div>
+
+<section class="stat-grid">
+  <article class="stat-card card">
+    <span class="stat-label">Total Groups</span>
+    <strong class="stat-value">{{ groups_total }}</strong>
+    <span class="stat-note">শেয়ার লিস্টে থাকা গ্রুপ</span>
+  </article>
+  <article class="stat-card card">
+    <span class="stat-label">Today · Sent</span>
+    <strong class="stat-value success-text">{{ today_sent }}</strong>
+    <span class="stat-note">আজকের সফল শেয়ার</span>
+  </article>
+  <article class="stat-card card">
+    <span class="stat-label">Today · Failed</span>
+    <strong class="stat-value danger-text">{{ today_failed }}</strong>
+    <span class="stat-note">আজকের ব্যর্থ শেয়ার</span>
+  </article>
+  <article class="stat-card card">
+    <span class="stat-label">Auto Post</span>
+    <strong class="stat-value {% if auto_enabled %}success-text{% else %}muted-text{% endif %}">
+      {% if auto_enabled %}ON{% else %}OFF{% endif %}
+    </strong>
+    <span class="stat-note">
+      {% if auto_enabled and auto_next_at %}Next: {{ auto_next_at|fmt_ts }}{% else %}Scheduler stopped{% endif %}
+    </span>
+  </article>
+</section>
+
+<section class="two-col">
+  <article class="card">
+    <div class="card-head">
+      <div>
+        <h2>Auto Round</h2>
+        <p class="muted">সর্বশেষ অটো-পোস্ট রাউন্ড</p>
+      </div>
+      <a class="link-muted" href="{{ url_for('auto_log') }}">Full log</a>
+    </div>
+    {% if last_auto %}
+      <dl class="detail-list">
+        <div><dt>Trigger</dt><dd><span class="badge badge-info">{{ last_auto['trigger'] }}</span></dd></div>
+        <div><dt>Started</dt><dd>{{ last_auto['started_at']|fmt_ts }}</dd></div>
+        <div><dt>Finished</dt><dd>{{ last_auto['finished_at']|fmt_ts }}</dd></div>
+        <div><dt>Duration</dt><dd>{{ (last_auto['finished_at'] - last_auto['started_at'])|duration }}</dd></div>
+        <div><dt>Total</dt><dd>{{ last_auto['total'] }}</dd></div>
+        <div><dt>Sent</dt><dd class="success-text">{{ last_auto['sent'] }}</dd></div>
+        <div><dt>Failed</dt><dd class="danger-text">{{ last_auto['failed'] }}</dd></div>
+      </dl>
+    {% else %}
+      <div class="empty-state">এখনো কোনো অটো রাউন্ড চলে নি।</div>
+    {% endif %}
+  </article>
+
+  <article class="card">
+    <div class="card-head">
+      <div>
+        <h2>Auto Settings</h2>
+        <p class="muted">বর্তমান শিডিউল ও মেসেজ</p>
+      </div>
+      <a class="link-muted" href="{{ url_for('settings') }}">Edit</a>
+    </div>
+    <dl class="detail-list">
+      <div><dt>Status</dt><dd>{% if auto_enabled %}<span class="badge badge-success">Enabled</span>{% else %}<span class="badge badge-muted">Disabled</span>{% endif %}</dd></div>
+      <div><dt>Interval</dt><dd>{{ auto_settings.get('auto_min_hour', '1') }} – {{ auto_settings.get('auto_max_hour', '2') }} hours</dd></div>
+      <div><dt>Next post</dt><dd>{{ auto_next_at|fmt_ts }}</dd></div>
+      <div><dt>Message</dt><dd>{% if auto_msg %}{{ auto_msg }}{% else %}<span class="muted">সেট করা নেই</span>{% endif %}</dd></div>
+    </dl>
+  </article>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>Recent Share Log</h2>
+      <p class="muted">সর্বশেষ ৮টি ফলাফল</p>
+    </div>
+    <a class="link-muted" href="{{ url_for('share_log') }}">View all</a>
+  </div>
+
+  {% if recent_logs %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Group</th>
+            <th>Status</th>
+            <th>Reason</th>
+            <th>Text</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in recent_logs %}
+          <tr>
+            <td class="nowrap">{{ log['ts']|fmt_ts }}</td>
+            <td>{{ log['group_title'] }}</td>
+            <td><span class="badge badge-{{ log['status']|status_class }}">{{ log['status'] }}</span></td>
+            <td class="muted">{{ log['reason'] or '—' }}</td>
+            <td class="text-cell">{{ log['text'] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">এখনো কোনো শেয়ার লগ নেই।</div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>Bot Config</h2>
+      <p class="muted">config.json থেকে নিরাপদ সারসংক্ষেপ (টোকেন দেখানো হয় না)</p>
+    </div>
+  </div>
+  {% if config %}
+    <dl class="config-grid">
+      <div><dt>Owner ID</dt><dd>{{ config.get('owner_id', '—') }}</dd></div>
+      <div><dt>Bot username</dt><dd>{{ config.get('bot_username', '—') }}</dd></div>
+      <div><dt>Support bot</dt><dd>{{ config.get('support_bot_username', '—') }}</dd></div>
+      <div><dt>Delay range</dt><dd>{{ config.get('delay_min', '—') }} – {{ config.get('delay_max', '—') }} sec</dd></div>
+      <div><dt>Max flood wait</dt><dd>{{ config.get('max_flood_wait', '—') }} sec</dd></div>
+      <div><dt>Registered users</dt><dd>{{ users_total }}</dd></div>
+    </dl>
+  {% else %}
+    <div class="empty-state">config.json পড়া যায়নি।</div>
+  {% endif %}
+</section>
+{% endblock %}

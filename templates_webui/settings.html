@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Settings · Group Sharer Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <span class="eyebrow">Configuration</span>
+    <h1>Settings</h1>
+    <p class="muted">নির্বাচিত ইউজারের অটো-পোস্ট সেটিংস (নতুন DB-তে <code>user_state</code>, পুরোনোতে <code>settings</code>)।</p>
+  </div>
+</div>
+
+{% if multi_user %}
+<section class="card">
+  <form method="get" action="{{ url_for('settings') }}" class="search-row">
+    <select name="user" aria-label="Select user">
+      {% for user in users %}
+        <option value="{{ user['user_id'] }}" {% if selected_user == user['user_id'] %}selected{% endif %}>{{ user['first_name'] or user['username'] or user['user_id'] }} ({{ user['user_id'] }})</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-secondary">Open User Settings</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>Auto Post Settings</h2>
+      <p class="muted">User {{ selected_user }} · নিরাপদ ও বট-সমর্থিত কীগুলো</p>
+    </div>
+  </div>
+
+  <form method="post" action="{{ url_for('settings') }}" class="form-stack settings-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="user_id" value="{{ selected_user }}">
+
+    <label class="field">
+      <span>Auto message (<code>auto_msg</code>)</span>
+      <textarea name="auto_msg" rows="6" maxlength="4096" placeholder="যে মেসেজটি সব গ্রুপে অটো-পোস্ট হবে…">{{ auto_msg }}</textarea>
+      <small>এটি পরিবর্তন করলে বটের পরের রাউন্ড থেকে নতুন মেসেজ যাবে।</small>
+    </label>
+
+    <div class="form-row">
+      <label class="field">
+        <span>Min interval hours (<code>auto_min_hour</code>)</span>
+        <input type="number" name="auto_min_hour" value="{{ auto_min_hour }}" min="1" max="168" step="1" required>
+      </label>
+      <label class="field">
+        <span>Max interval hours (<code>auto_max_hour</code>)</span>
+        <input type="number" name="auto_max_hour" value="{{ auto_max_hour }}" min="1" max="168" step="1" required>
+      </label>
+    </div>
+
+    <label class="toggle">
+      <input type="checkbox" name="auto_enabled" value="1" {% if auto_enabled %}checked{% endif %}>
+      <span>Auto post enabled (<code>auto_enabled</code>)</span>
+    </label>
+
+    <div class="button-row">
+      <button type="submit" class="btn btn-primary">Save Settings</button>
+      <span class="muted small-text">Next scheduled post: {{ auto_next_at|fmt_ts }}</span>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>Manual Share Trigger</h2>
+      <p class="muted">এখনই একটি শেয়ার রাউন্ড চালানোর চেষ্টা</p>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('trigger_share_round') }}" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-secondary">Trigger share round now</button>
+    <span class="muted small-text">এখনো সাপোর্ট করা হয়নি — বটে আলাদা manual trigger নেই।</span>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>All Settings Keys</h2>
+      <p class="muted">সংবেদনশীল কীগুলো <code>***</code> দিয়ে ঢাকা</p>
+    </div>
+  </div>
+
+  {% if rows %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Key</th>
+            <th>Value</th>
+            <th>Source</th>
+            <th>Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td class="mono muted">{{ row['user_id'] }}</td>
+            <td class="mono">{{ row['key'] }}</td>
+            <td class="mono value-cell">
+              {% if row['masked'] %}<span class="masked">{{ row['value'] }}</span>{% else %}{{ row['value'] }}{% endif %}
+            </td>
+            <td><span class="badge badge-muted">{{ row['source'] }}</span></td>
+            <td>
+              {% if row['editable'] %}
+                <span class="badge badge-success">Editable</span>
+              {% elif row['masked'] %}
+                <span class="badge badge-muted">Masked</span>
+              {% else %}
+                <span class="badge badge-muted">Read only</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">settings টেবিলে কোনো কী নেই।</div>
+  {% endif %}
+</section>
+
+<section class="card note-card">
+  <h2>Config File</h2>
+  <p class="muted">
+    <code>config.json</code>-এর টোকেন, API hash ও সেশন WebUI কখনো দেখায় না বা বদলায় না।
+    ডিলে ও অন্যান্য কনফিগ মান বটের নিজের ফাইল থেকেই পড়া হয়।
+  </p>
+</section>
+{% endblock %}

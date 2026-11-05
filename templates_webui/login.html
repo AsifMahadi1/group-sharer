@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Login · Group Sharer Admin{% endblock %}
+{% block content %}
+<section class="auth-wrap">
+  <div class="auth-card card">
+    <div class="auth-heading">
+      <span class="eyebrow">Admin access</span>
+      <h1>WebUI লগইন</h1>
+      <p class="muted">Group Sharer ম্যানেজ করতে পাসওয়ার্ড দিন।</p>
+    </div>
+
+    <form method="post" action="{{ url_for('login') }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">
+        <span>পাসওয়ার্ড</span>
+        <input type="password" name="password" required autocomplete="current-password" autofocus>
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">লগইন</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

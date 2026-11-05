@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Groups · Group Sharer Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <span class="eyebrow">Targets</span>
+    <h1>Groups</h1>
+    <p class="muted">শেয়ার লিস্টে গ্রুপ যোগ, খোঁজা, মুছে ফেলা এবং ব্যাকআপ নিন।</p>
+  </div>
+  <div class="page-actions">
+    <span class="pill">{{ groups|length }} shown</span>
+  </div>
+</div>
+
+<section class="card">
+  <form method="get" action="{{ url_for('groups') }}" class="search-row">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search by title or chat_id…" aria-label="Search groups">
+    {% if multi_user %}
+    <select name="user" aria-label="Filter by user">
+      <option value="">All users</option>
+      {% for user in users %}
+        <option value="{{ user['user_id'] }}" {% if filter_user == user['user_id'] %}selected{% endif %}>{{ user['first_name'] or user['username'] or user['user_id'] }} ({{ user['user_id'] }})</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <button type="submit" class="btn btn-secondary">Search</button>
+    {% if q or filter_user %}<a class="btn btn-ghost" href="{{ url_for('groups') }}">Clear</a>{% endif %}
+  </form>
+</section>
+
+<section class="two-col forms-col">
+  <article class="card">
+    <div class="card-head">
+      <div>
+        <h2>Add One Group</h2>
+        <p class="muted">chat_id, @username অথবা t.me লিংক</p>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('groups_add') }}" class="form-stack" id="single-add-form" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      {% if multi_user %}
+      <label class="field">
+        <span>User *</span>
+        <select name="user_id" required>
+          {% for user in users %}
+            <option value="{{ user['user_id'] }}" {% if filter_user == user['user_id'] or (not filter_user and user['user_id'] == default_user_id) %}selected{% endif %}>{{ user['first_name'] or user['username'] or user['user_id'] }} ({{ user['user_id'] }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      <label class="field">
+        <span>Target *</span>
+        <input type="text" name="target" id="single-target" placeholder="-1001234567890 / @mygroup / https://t.me/mygroup" required autocomplete="off">
+        <small>যেমন: <code>-1001234567890</code>, <code>@groupname</code>, <code>t.me/+invite</code></small>
+      </label>
+      <label class="field">
+        <span>Title (optional)</span>
+        <input type="text" name="title" maxlength="200" placeholder="(untitled)" autocomplete="off">
+      </label>
+      <p class="form-error" id="single-error" hidden></p>
+      <button type="submit" class="btn btn-primary">Add Group</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <div class="card-head">
+      <div>
+        <h2>Bulk Add</h2>
+        <p class="muted">প্রতি লাইনে একটি; চাইলে <code>target | title</code></p>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('groups_bulk_add') }}" class="form-stack" id="bulk-add-form" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if multi_user %}
+      <label class="field">
+        <span>User *</span>
+        <select name="user_id" required>
+          {% for user in users %}
+            <option value="{{ user['user_id'] }}" {% if filter_user == user['user_id'] or (not filter_user and user['user_id'] == default_user_id) %}selected{% endif %}>{{ user['first_name'] or user['username'] or user['user_id'] }} ({{ user['user_id'] }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      <label class="field">
+        <span>Targets</span>
+        <textarea name="targets" id="bulk-targets" rows="7" placeholder="-1001234567890 | My Group&#10;@publicgroup&#10;https://t.me/+AbCdEf123"></textarea>
+      </label>
+      <p class="form-error" id="bulk-error" hidden></p>
+      <button type="submit" class="btn btn-primary">Bulk Add</button>
+    </form>
+  </article>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>Backup / Restore</h2>
+      <p class="muted">CSV বা JSON export ও import</p>
+    </div>
+    <div class="button-row">
+      <a class="btn btn-secondary btn-small" href="{{ url_for('groups_export', format='csv', q=q, user=filter_user) }}">Export CSV</a>
+      <a class="btn btn-secondary btn-small" href="{{ url_for('groups_export', format='json', q=q, user=filter_user) }}">Export JSON</a>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('groups_import') }}" enctype="multipart/form-data" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if multi_user %}
+    <select name="user_id" aria-label="Default user for imported groups">
+      {% for user in users %}
+        <option value="{{ user['user_id'] }}" {% if filter_user == user['user_id'] or (not filter_user and user['user_id'] == default_user_id) %}selected{% endif %}>{{ user['first_name'] or user['username'] or user['user_id'] }} ({{ user['user_id'] }})</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <input type="file" name="file" accept=".csv,.json,text/csv,application/json" required>
+    <button type="submit" class="btn btn-secondary">Import</button>
+    <span class="muted small-text">CSV header: <code>chat_id,title</code>{% if multi_user %}, optional <code>user_id</code>{% endif %} এবং JSON: list of objects বা <code>{"groups": [...]}</code></span>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>Group List</h2>
+      <p class="muted">মোট {{ groups|length }} টি গ্রুপ{% if q %} (search: “{{ q }}”){% endif %}</p>
+    </div>
+    <form id="bulk-delete-form" method="post" action="{{ url_for('groups_bulk_delete') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+    <button type="submit" form="bulk-delete-form" class="btn btn-danger btn-small">Delete Selected</button>
+  </div>
+
+  {% if groups %}
+    <div class="table-wrap">
+      <table class="data-table select-table">
+        <thead>
+          <tr>
+            <th class="check-col"><input type="checkbox" id="select-all" aria-label="Select all groups"></th>
+            <th>ID</th>
+            {% if multi_user %}<th>User</th>{% endif %}
+            <th>Chat ID</th>
+            <th>Title</th>
+            <th>Added</th>
+            <th class="actions-col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for group in groups %}
+          <tr>
+            <td class="check-col"><input type="checkbox" class="row-check" name="ids" value="{{ group['id'] }}" form="bulk-delete-form" aria-label="Select {{ group['title'] }}"></td>
+            <td class="muted">{{ group['id'] }}</td>
+            {% if multi_user %}<td class="nowrap">{{ group['first_name'] or group['username'] or group['user_id'] }}<br><span class="muted mono">{{ group['user_id'] }}</span></td>{% endif %}
+            <td class="mono">{{ group['chat_id'] }}</td>
+            <td>{{ group['title'] }}</td>
+            <td class="nowrap">{{ group['added_at']|fmt_ts }}</td>
+            <td class="actions-col">
+              <form method="post" action="{{ url_for('group_delete', group_id=group['id']) }}" onsubmit="return confirm('এই গ্রুপটি মুছে ফেলবেন?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                <button type="submit" class="btn btn-danger btn-small">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      {% if q %}এই সার্চে কোনো গ্রুপ পাওয়া যায়নি।{% else %}এখনো কোনো গ্রুপ যোগ করা হয়নি।{% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  function validTarget(value) {
+    var target = (value || '').trim();
+    if (/^-?\d{3,20}$/.test(target)) return true;
+    if (/^@[A-Za-z][A-Za-z0-9_]{3,31}$/.test(target)) return true;
+    if (/^(https?:\/\/)?(www\.)?(t\.me|telegram\.me)\/(\+|joinchat\/)[A-Za-z0-9_-]{5,}\/?$/i.test(target)) return true;
+    if (/^(https?:\/\/)?(www\.)?(t\.me|telegram\.me)\/[A-Za-z][A-Za-z0-9_]{3,31}\/?$/i.test(target)) return true;
+    return false;
+  }
+
+  var singleForm = document.getElementById('single-add-form');
+  var singleError = document.getElementById('single-error');
+  if (singleForm) {
+    singleForm.addEventListener('submit', function (event) {
+      var input = document.getElementById('single-target');
+      if (!validTarget(input.value)) {
+        event.preventDefault();
+        singleError.textContent = 'সঠিক chat_id, @username অথবা t.me লিংক দিন।';
+        singleError.hidden = false;
+        input.focus();
+      }
+    });
+  }
+
+  var bulkForm = document.getElementById('bulk-add-form');
+  var bulkError = document.getElementById('bulk-error');
+  if (bulkForm) {
+    bulkForm.addEventListener('submit', function (event) {
+      var lines = document.getElementById('bulk-targets').value.split(/\r?\n/);
+      var bad = [];
+      lines.forEach(function (line, index) {
+        line = line.trim();
+        if (!line || line.charAt(0) === '#') return;
+        var target = line.split('|')[0].trim();
+        if (!validTarget(target)) bad.push(index + 1);
+      });
+      if (bad.length) {
+        event.preventDefault();
+        bulkError.textContent = 'ভুল ফরম্যাট, লাইন: ' + bad.slice(0, 8).join(', ');
+        bulkError.hidden = false;
+      }
+    });
+  }
+
+  var selectAll = document.getElementById('select-all');
+  var checks = Array.prototype.slice.call(document.querySelectorAll('.row-check'));
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      checks.forEach(function (box) { box.checked = selectAll.checked; });
+    });
+  }
+  checks.forEach(function (box) {
+    box.addEventListener('change', function () {
+      if (!selectAll) return;
+      selectAll.checked = checks.length > 0 && checks.every(function (item) { return item.checked; });
+    });
+  });
+
+  var bulkDelete = document.getElementById('bulk-delete-form');
+  if (bulkDelete) {
+    bulkDelete.addEventListener('submit', function (event) {
+      var selected = document.querySelectorAll('.row-check:checked').length;
+      if (!selected) {
+        event.preventDefault();
+        alert('আগে অন্তত একটি গ্রুপ সিলেক্ট করুন।');
+        return;
+      }
+      if (!confirm(selected + ' টি গ্রুপ মুছে ফেলবেন?')) {
+        event.preventDefault();
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

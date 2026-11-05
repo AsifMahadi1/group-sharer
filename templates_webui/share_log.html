@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Share Log · Group Sharer Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <span class="eyebrow">History</span>
+    <h1>Share Log</h1>
+    <p class="muted">{{ total }} টি ফলাফল পাওয়া গেছে। নতুন আগে দেখানো হচ্ছে।</p>
+  </div>
+  <div class="page-actions">
+    <span class="pill">Page {{ page }} / {{ pages }}</span>
+  </div>
+</div>
+
+<section class="card">
+  <form method="get" action="{{ url_for('share_log') }}" class="filter-grid{% if multi_user %} filter-grid-wide{% endif %}">
+    {% if multi_user %}
+    <label class="field">
+      <span>User</span>
+      <select name="user">
+        <option value="">All users</option>
+        {% for user in users %}
+          <option value="{{ user['user_id'] }}" {% if filter_user == user['user_id'] %}selected{% endif %}>{{ user['first_name'] or user['username'] or user['user_id'] }} ({{ user['user_id'] }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <label class="field">
+      <span>Status</span>
+      <select name="status">
+        <option value="">All statuses</option>
+        {% for item in statuses %}
+          <option value="{{ item['status'] }}" {% if status == item['status'] %}selected{% endif %}>{{ item['status'] }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field">
+      <span>Group</span>
+      <select name="group">
+        <option value="">All groups</option>
+        {% for item in group_names %}
+          <option value="{{ item['group_title'] }}" {% if group == item['group_title'] %}selected{% endif %}>{{ item['group_title'] }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field">
+      <span>From</span>
+      <input type="date" name="from" value="{{ date_from }}">
+    </label>
+    <label class="field">
+      <span>To</span>
+      <input type="date" name="to" value="{{ date_to }}">
+    </label>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a class="btn btn-ghost" href="{{ url_for('share_log') }}">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  {% if logs %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            {% if multi_user %}<th>User</th>{% endif %}
+            <th>Group</th>
+            <th>Status</th>
+            <th>Reason</th>
+            <th>Text</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="nowrap">{{ log['ts']|fmt_ts }}</td>
+            {% if multi_user %}<td class="nowrap">{{ log['first_name'] or log['username'] or log['user_id'] }}<br><span class="muted mono">{{ log['user_id'] }}</span></td>{% endif %}
+            <td>{{ log['group_title'] }}</td>
+            <td><span class="badge badge-{{ log['status']|status_class }}">{{ log['status'] }}</span></td>
+            <td class="muted">{{ log['reason'] or '—' }}</td>
+            <td class="text-cell">
+              {% if log['text']|length > 110 %}
+                <details class="log-details">
+                  <summary>{{ log['text'][:110] }}…</summary>
+                  <div class="log-full">{{ log['text'] }}</div>
+                </details>
+              {% else %}
+                <span class="log-full">{{ log['text'] }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pages > 1 %}
+    <nav class="pagination" aria-label="Share log pages">
+      {% if page > 1 %}
+        <a class="btn btn-ghost btn-small" href="{{ page_url(1) }}">First</a>
+        <a class="btn btn-secondary btn-small" href="{{ page_url(page - 1) }}">Previous</a>
+      {% endif %}
+      <span class="page-indicator">Page {{ page }} of {{ pages }}</span>
+      {% if page < pages %}
+        <a class="btn btn-secondary btn-small" href="{{ page_url(page + 1) }}">Next</a>
+        <a class="btn btn-ghost btn-small" href="{{ page_url(pages) }}">Last</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+  {% else %}
+    <div class="empty-state">এই ফিল্টারে কোনো লগ পাওয়া যায়নি।</div>
+  {% endif %}
+</section>
+{% endblock %}

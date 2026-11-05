@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Group Sharer Admin{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="{{ url_for('index') }}">
+        <span class="brand-mark">GS</span>
+        <span class="brand-text">
+          <strong>Group Sharer</strong>
+          <small>Admin WebUI</small>
+        </span>
+      </a>
+
+      {% if session.get('auth') %}
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="{{ url_for('dashboard') }}" class="{% if current_path == '/dashboard' or current_path == '/' %}active{% endif %}">Dashboard</a>
+        <a href="{{ url_for('groups') }}" class="{% if current_path.startswith('/groups') %}active{% endif %}">Groups</a>
+        <a href="{{ url_for('share_log') }}" class="{% if current_path.startswith('/share-log') %}active{% endif %}">Share Log</a>
+        <a href="{{ url_for('auto_log') }}" class="{% if current_path.startswith('/auto-log') %}active{% endif %}">Auto Log</a>
+        <a href="{{ url_for('settings') }}" class="{% if current_path.startswith('/settings') %}active{% endif %}">Settings</a>
+      </nav>
+      <form method="post" action="{{ url_for('logout') }}" class="logout-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-ghost btn-small">Logout</button>
+      </form>
+      {% endif %}
+    </header>
+
+    <main class="page">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}" role="status">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+      <span>Group Sharer WebUI</span>
+      <span>127.0.0.1:8017 · local admin only</span>
+    </footer>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
