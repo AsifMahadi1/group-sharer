@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Live Groups · Group Sharer Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Live Groups</h1>
+    <p class="muted">আপনার জয়েন করা গ্রুপ/চ্যানেল স্ক্যান করে দেখুন, টিক দিয়ে শেয়ার লিস্টে রাখুন বা বাদ দিন — তারপর Save।</p>
+  </div>
+  <form method="post" action="{{ url_for('live_groups_scan') }}" id="scan-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-primary" id="scan-btn">🔍 স্ক্যান করুন</button>
+  </form>
+</div>
+
+<div id="scan-status" class="flash flash-info" style="display:none" role="status"></div>
+<div id="save-status" class="flash flash-success" style="display:none" role="status"></div>
+
+<div id="content-area">
+  {% if not scan or scan.status not in ('done',) or not scan.result %}
+    <div class="empty-state">
+      <p><strong>এখনো কোনো স্ক্যান হয়নি।</strong></p>
+      <p class="muted">উপরের <em>স্ক্যান করুন</em> বাটন চাপুন — বট আপনার জয়েন করা গ্রুপগুলো বের করে এখানে দেখাবে।</p>
+    </div>
+  {% endif %}
+
+  <noscript>
+    <p class="flash flash-warning">চেকলিস্ট দেখতে JavaScript চালু রাখুন।</p>
+  </noscript>
+
+  <div id="checklist" style="display:none">
+    <div class="card">
+      <div class="card-head">
+        <h2>✅ জয়েন করা গ্রুপ/চ্যানেল</h2>
+        <span class="muted" id="scan-meta"></span>
+      </div>
+      <p class="muted small">টিক করা = শেয়ার লিস্টে আছে। বদলানো হলে Save চাপতে হবে।
+      <strong>নোট:</strong> শেয়ার হবার জন্য বট/ইউজারবট গ্রুপের মেম্বার হতে হবে।</p>
+      <div class="check-toolbar">
+        <button type="button" class="btn btn-ghost btn-small" id="check-all">সব টিক</button>
+        <button type="button" class="btn btn-ghost btn-small" id="check-none">সব আনটিক</button>
+        <span class="muted" id="dirty-note" style="display:none">● অসংরক্ষিত পরিবর্তন আছে</span>
+      </div>
+      <ul class="live-list" id="live-list"></ul>
+    </div>
+
+    <div class="card" id="db-only-card" style="display:none">
+      <div class="card-head"><h2>⚠️ স্ক্যানে পাওয়া যায়নি (লিস্টে আছে)</h2></div>
+      <p class="muted small">এই গ্রুপগুলো শেয়ার লিস্টে আছে, কিন্তু আপনার অ্যাকাউন্টে খুঁজে পাওয়া যায়নি — বট মেম্বার নাও থাকতে পারে।
+      টিক খুলে দিলে SAVE-এ লিস্ট থেকে বাদ যাবে।</p>
+      <ul class="live-list" id="db-only-list"></ul>
+    </div>
+
+    <div class="save-bar">
+      <button type="button" class="btn btn-primary btn-large" id="save-btn" disabled>💾 SAVE</button>
+      <span id="save-summary" class="muted"></span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var CSRF = "{{ csrf_token() }}";
+  var scan = {{ scan|tojson if scan else 'null' }};
+  var state = { live: [], dbOnly: [], dirty: false, polling: false };
+  var $ = function (id) { return document.getElementById(id); };
+
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function show(el, msg, cls) {
+    el.style.display = "";
+    el.className = "flash flash-" + (cls || "info");
+    el.textContent = msg;
+  }
+
+  function hide(el) { el.style.display = "none"; }
+
+  function markDirty() {
+    state.dirty = true;
+    $("dirty-note").style.display = "";
+    $("save-btn").disabled = false;
+  }
+
+  function render(data) {
+    state.live = data.live || [];
+    state.dbOnly = data.db_only || [];
+    var list = $("live-list");
+    list.innerHTML = "";
+    state.live.forEach(function (g) {
+      var li = document.createElement("li");
+      li.className = "live-item";
+      li.innerHTML =
+        '<label><input type="checkbox" data-cid="' + g.chat_id + '" data-title="' + escapeHtml(g.db_title || g.title) + '" ' + (g.in_db ? "checked" : "") + '> <span class="live-title">' + escapeHtml(g.title) + '</span> <code>' + g.chat_id + '</code> <span class="muted">' + escapeHtml(g.type) + '</span></label>';
+      list.appendChild(li);
+    });
+    if (!state.live.length) {
+      list.innerHTML = '<li class="muted">স্ক্যানে কোনো গ্রুপ/চ্যানেল পাওয়া যায়নি।</li>';
+    }
+    var only = $("db-only-card");
+    var olist = $("db-only-list");
+    olist.innerHTML = "";
+    if (state.dbOnly.length) {
+      only.style.display = "";
+      state.dbOnly.forEach(function (g) {
+        var li = document.createElement("li");
+        li.className = "live-item live-item-missing";
+        li.innerHTML =
+          '<label><input type="checkbox" class="db-only-check" checked data-cid="' + g.chat_id + '"> <span class="live-title">' + escapeHtml(g.title) + '</span> <code>' + g.chat_id + '</code> <span class="muted">⚠️ স্ক্যানে নেই</span></label>';
+        olist.appendChild(li);
+      });
+    } else {
+      only.style.display = "none";
+    }
+    $("checklist").style.display = "";
+    var s = data.scan || {};
+    if (s.result) {
+      $("scan-meta").textContent = "স্ক্যান: " + s.result.found + " টি পাওয়া গেছে, লিস্টে " + s.result.in_db + " টি আছে";
+    }
+    list.addEventListener("change", onToggle);
+    olist.addEventListener("change", onToggle);
+  }
+
+  function onToggle() { markDirty(); }
+
+  function poll(done) {
+    state.polling = true;
+    var timer = setInterval(function () {
+      fetch("{{ url_for('live_groups_data') }}", { headers: { "Accept": "application/json" } })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var s = d.scan || {};
+          if (!done) { clearInterval(timer); state.polling = false; return; }
+          if (s.status === "done" || s.status === "error") {
+            clearInterval(timer);
+            state.polling = false;
+            $("scan-btn").disabled = false;
+            if (s.status === "error") {
+              show($("scan-status"), "❌ স্ক্যান ব্যর্থ: " + ((s.result && s.result.error) || "অজানা সমস্যা"), "danger");
+            } else {
+              render(d);
+              show($("scan-status"), "✅ স্ক্যান শেষ — " + s.result.found + " টি গ্রুপ/চ্যানেল পাওয়া গেছে।", "success");
+            }
+          } else {
+            show($("scan-status"), "⏳ বট স্ক্যান করছে...", "info");
+          }
+        })
+        .catch(function () {});
+    }, 2000);
+  }
+
+  $("scan-form").addEventListener("submit", function () {
+    $("scan-btn").disabled = true;
+    show($("scan-status"), "⏳ স্ক্যানের অনুরোধ পাঠানো হয়েছে...", "info");
+    poll(true);
+  });
+
+  $("check-all").addEventListener("click", function () {
+    document.querySelectorAll("#live-list input[type=checkbox]").forEach(function (c) {
+      if (!c.checked) { c.checked = true; }
+    });
+    markDirty();
+  });
+  $("check-none").addEventListener("click", function () {
+    document.querySelectorAll("#live-list input[type=checkbox]").forEach(function (c) {
+      if (c.checked) { c.checked = false; }
+    });
+    markDirty();
+  });
+
+  $("save-btn").addEventListener("click", function () {
+    var add = [], remove = [];
+    document.querySelectorAll("#live-list input[type=checkbox]").forEach(function (c) {
+      var cid = parseInt(c.getAttribute("data-cid"), 10);
+      var title = c.getAttribute("data-title") || "(untitled)";
+      if (c.checked && !cid) return;
+      if (c.checked) {
+        var inDb = state.live.some(function (g) { return g.chat_id === cid && g.in_db; });
+        if (!inDb) add.push({ chat_id: cid, title: title });
+      } else {
+        var wasInDb = state.live.some(function (g) { return g.chat_id === cid && g.in_db; });
+        if (wasInDb) remove.push(cid);
+      }
+    });
+    document.querySelectorAll("#db-only-list .db-only-check").forEach(function (c) {
+      if (!c.checked) remove.push(parseInt(c.getAttribute("data-cid"), 10));
+    });
+    fetch("{{ url_for('live_groups_save') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF },
+      body: JSON.stringify({ add: add, remove: remove })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          show($("save-status"), "💾 সেভ হয়েছে — যোগ: " + d.added + ", বাদ: " + d.removed, "success");
+          state.dirty = false;
+          $("dirty-note").style.display = "none";
+          $("save-btn").disabled = true;
+          fetch("{{ url_for('live_groups_data') }}")
+            .then(function (r) { return r.json(); })
+            .then(render);
+        } else {
+          show($("save-status"), "❌ সেভ হয়নি — আবার চেষ্টা করুন।", "danger");
+        }
+      })
+      .catch(function () { show($("save-status"), "❌ নেটওয়ার্ক সমস্যা।", "danger"); });
+  });
+
+  // Initial state: if last scan is done → show cached checklist;
+  // if pending/running (page reloaded after clicking scan) → resume polling
+  var lastStatus = scan ? scan.status : null;
+  if (lastStatus === "pending" || lastStatus === "running") {
+    $("scan-btn").disabled = true;
+    show($("scan-status"), "⏳ বট স্ক্যান করছে...", "info");
+    poll(true);
+  } else if (lastStatus === "error") {
+    show($("scan-status"), "❌ শেষ স্ক্যান ব্যর্থ: " + ((scan.result && scan.result.error) || "অজানা সমস্যা") + " — আবার চেষ্টা করুন।", "danger");
+    fetch("{{ url_for('live_groups_data') }}")
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d.live.length) render(d); });
+  } else if (lastStatus === "done") {
+    fetch("{{ url_for('live_groups_data') }}")
+      .then(function (r) { return r.json(); })
+      .then(function (d) { render(d); });
+  }
+})();
+</script>
+{% endblock %}

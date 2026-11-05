@@ -21,6 +21,7 @@
       <nav class="main-nav" aria-label="Main navigation">
         <a href="{{ url_for('dashboard') }}" class="{% if current_path == '/dashboard' or current_path == '/' %}active{% endif %}">Dashboard</a>
         <a href="{{ url_for('groups') }}" class="{% if current_path.startswith('/groups') %}active{% endif %}">Groups</a>
+        <a href="{{ url_for('live_groups') }}" class="{% if current_path.startswith('/live-groups') %}active{% endif %}">Live Groups</a>
         <a href="{{ url_for('share_log') }}" class="{% if current_path.startswith('/share-log') %}active{% endif %}">Share Log</a>
         <a href="{{ url_for('auto_log') }}" class="{% if current_path.startswith('/auto-log') %}active{% endif %}">Auto Log</a>
         <a href="{{ url_for('settings') }}" class="{% if current_path.startswith('/settings') %}active{% endif %}">Settings</a>

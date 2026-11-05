@@ -28,6 +28,7 @@ from flask import (
     Response,
     abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -1308,6 +1309,119 @@ def trigger_share_round():
         "warning",
     )
     return redirect(url_for("settings"))
+
+
+# --------------------------------------------------------------------------
+# Entry point
+# --------------------------------------------------------------------------
+
+
+# --------------------------------------------------------------------------
+# Live Groups (checkgroups in the browser — scan via running bot bridge)
+# --------------------------------------------------------------------------
+def _normalize_id(chat_id):
+    """Mirrors bot.normalize_id: DB stores raw entity.id (positive) while
+    dialogs come back as utils.get_peer_id (-100XXXXXXXXXX)."""
+    try:
+        chat_id = int(chat_id)
+    except (TypeError, ValueError):
+        return chat_id
+    if chat_id <= -1000000000000:
+        return abs(chat_id) - 1000000000000
+    if chat_id < 0:
+        return -chat_id
+    return chat_id
+
+
+def _raw_stored_id(live_chat_id):
+    """Convert a live-scan peer id into the raw entity.id form the bot saves/dials."""
+    try:
+        chat_id = int(live_chat_id)
+    except (TypeError, ValueError):
+        return live_chat_id
+    if chat_id <= -1000000000000:
+        return abs(chat_id) - 1000000000000
+    if chat_id < 0:
+        return -chat_id
+    return chat_id
+
+
+@app.route("/live-groups")
+@login_required
+def live_groups():
+    db.reset_stale_scans(300)
+    scan = db.latest_scan()
+    return render_template("live_groups.html", scan=scan)
+
+
+def _live_groups_payload():
+    saved = {g["chat_id"]: g["title"] for g in db.get_groups()}
+    saved_norm = {_normalize_id(cid): title for cid, title in saved.items()}
+    live = []
+    seen_norm = set()
+    for r in db.live_groups_all():
+        cid = r["chat_id"]
+        norm = _normalize_id(cid)
+        seen_norm.add(norm)
+        existing = saved_norm.get(norm)
+        live.append({
+            "chat_id": cid,
+            "title": (existing or r["title"]),
+            "type": r["type"] or "",
+            "in_db": existing is not None,
+            "db_title": existing,
+        })
+    db_only = [
+        {"chat_id": cid, "title": title}
+        for cid, title in sorted(saved.items())
+        if _normalize_id(cid) not in seen_norm
+    ]
+    return {
+        "scan": db.latest_scan(),
+        "live": live,
+        "db_only": db_only,
+    }
+
+
+@app.route("/live-groups/data")
+@login_required
+def live_groups_data():
+    return jsonify(_live_groups_payload())
+
+
+@app.route("/live-groups/scan", methods=["POST"])
+@login_required
+def live_groups_scan():
+    db.reset_stale_scans(300)
+    row_id, err = db.request_scan()
+    if err == "already_running":
+        flash("স্ক্যান ইতোমধ্যে চলছে — একটু অপেক্ষা করুন।", "warning")
+    elif row_id:
+        flash("স্ক্যানের অনুরোধ পাঠানো হয়েছে — বট একটু পরেই ফলাফল দেবে।", "success")
+    return redirect(url_for("live_groups"))
+
+
+@app.route("/live-groups/save", methods=["POST"])
+@login_required
+def live_groups_save():
+    body = request.get_json(silent=True) or {}
+    additions = []
+    for item in body.get("add", [])[:2000]:
+        try:
+            cid = int(item["chat_id"])
+            additions.append((_raw_stored_id(cid), str(item.get("title", "(untitled)"))[:200]))
+        except (TypeError, ValueError):
+            pass
+    removals = []
+    for item in body.get("remove", [])[:2000]:
+        try:
+            removals.append(int(item))
+        except (TypeError, ValueError):
+            pass
+    # removals come as live peer ids (-100...); convert to the bot's stored form
+    removals = [_raw_stored_id(cid) for cid in removals]
+    added, removed = db.save_live_selection(additions, removals)
+    return jsonify({"ok": True, "added": added, "removed": removed})
 
 
 # --------------------------------------------------------------------------

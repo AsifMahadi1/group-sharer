@@ -1057,9 +1057,65 @@ async def post_init(app):
     )
     print("⏰ Auto-post scheduler launched.")
 
+    # Start the WebUI live-group scan poller (see BRIEF_LIVE_GROUPS.md)
+    global _scan_task
+    _scan_task = loop.create_task(scan_poller_loop(), name="webui-scan-poller")
+    print("🔎 WebUI scan poller launched.")
+
+
+async def scan_poller_loop():
+    """Fulfil WebUI scan requests: check pending rows, run list_joined_chats,
+    cache results in live_groups. Never raises."""
+    last_stale_check = 0.0
+    while True:
+        try:
+            await asyncio.sleep(5)
+            now = time.time()
+            if now - last_stale_check >= 60:
+                db.reset_stale_scans(300)
+                last_stale_check = now
+            req = db.next_scan_request()
+            if not req:
+                continue
+            db.finish_scan(req["id"], "running", {})
+            if not engine.is_logged_in:
+                ok, err = await engine.ensure_connected()
+                if not ok:
+                    db.finish_scan(req["id"], "error", {"error": err or "not logged in"})
+                    continue
+            chats, err = await engine.list_joined_chats()
+            if err:
+                db.finish_scan(req["id"], "error", {"error": str(err)[:300]})
+                continue
+            db.replace_live_groups(chats)
+            saved_ids = saved_group_ids()
+            matched = sum(1 for c in chats if normalize_id(c["chat_id"]) in saved_ids)
+            db.finish_scan(req["id"], "done", {
+                "found": len(chats),
+                "in_db": matched,
+            })
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa - poller must never crash the bot
+            try:
+                print(f"⚠️ scan poller error: {exc}")
+            except Exception:
+                pass
+
+
+_scan_task = None
+
 
 async def post_shutdown(app):
     """Clean shutdown of the scheduler and the MTProto client."""
+    global _scan_task
+    if _scan_task:
+        _scan_task.cancel()
+        try:
+            await _scan_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        _scan_task = None
     if STATE.task:
         STATE.task.cancel()
         try:
