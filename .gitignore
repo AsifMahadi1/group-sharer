@@ -15,3 +15,14 @@ __pycache__/
 # Local database (contains group list + settings)
 data.db
 *.db
+
+# Virtual env
+.venv/
+venv/
+
+# Backups / rotated logs
+*.bak
+*.old
+*.prev
+bot.log.old
+bot.log.prev

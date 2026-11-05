@@ -94,6 +94,36 @@ def saved_group_ids():
     return {normalize_id(g["chat_id"]) for g in db.get_groups()}
 
 
+async def _safe_edit(msg, text):
+    """Edit a message with Markdown; on parse failure, fall back to plain text."""
+    try:
+        await msg.edit_text(text, parse_mode="Markdown")
+    except Exception:
+        try:
+            await msg.edit_text(text)
+        except Exception as e:
+            print(f"[checkgroups] edit failed: {e}")
+
+
+async def _safe_send(chat_id, text, bot):
+    """Send a message with Markdown; on parse failure, fall back to plain text."""
+    try:
+        await bot.send_message(chat_id, text, parse_mode="Markdown")
+    except Exception:
+        try:
+            await bot.send_message(chat_id, text)
+        except Exception as e:
+            print(f"[checkgroups] send failed: {e}")
+
+
+def _md_escape(s):
+    """Escape Telegram legacy-Markdown special chars in dynamic text."""
+    s = str(s)
+    for ch in ("\\", "_", "*", "`", "["):
+        s = s.replace(ch, "\\" + ch)
+    return s
+
+
 def fmt_checkgroups(chats, saved_ids):
     """Format joined chats, marking the ones already added for posting with checkmark."""
     saved_ids = {normalize_id(i) for i in saved_ids}
@@ -117,9 +147,10 @@ def fmt_checkgroups(chats, saved_ids):
     for i, c in enumerate(chats, 1):
         mark = ("✅" if normalize_id(c["chat_id"]) in saved_ids
                 else "➕")
-        line = (f"{mark} {i}. {c['title'][:45]}\n"
-                f"   `{c['chat_id']}` — {c['type']}"
-                + (f" {c['username']}" if c["username"] != "—" else "") + "\n")
+        title = _md_escape(c["title"][:45])
+        uname = "" if c["username"] == "—" else " " + _md_escape(c["username"])
+        line = (f"{mark} {i}. {title}\n"
+                f"   `{c['chat_id']}` — {_md_escape(c['type'])}{uname}\n")
         if len(cur) + len(line) > 3900:
             chunks.append(cur)
             cur = ""
@@ -241,9 +272,9 @@ async def menu_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("📭 আপনার অ্যাকাউন্টে কোনো গ্রুপ/চ্যানেল নেই।")
             return
         chunks = fmt_checkgroups(chats, saved_group_ids())
-        await query.edit_message_text(chunks[0], parse_mode="Markdown")
+        await _safe_edit(query.message, chunks[0])
         for ch in chunks[1:]:
-            await context.bot.send_message(update.effective_user.id, ch, parse_mode="Markdown")
+            await _safe_send(update.effective_user.id, ch, context.bot)
     elif val == "removegroup":
         groups = db.get_groups()
         if not groups:
@@ -606,9 +637,9 @@ async def cmd_checkgroups(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chunks = fmt_checkgroups(chats, saved_group_ids())
-    await msg.edit_text(chunks[0], parse_mode="Markdown")
+    await _safe_edit(msg, chunks[0])
     for ch in chunks[1:]:
-        await update.message.reply_text(ch, parse_mode="Markdown")
+        await _safe_send(update.effective_user.id, ch, context.bot)
 
 
 @owner_only
