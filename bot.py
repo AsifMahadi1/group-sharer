@@ -858,7 +858,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "2FA পাসওয়ার্ড থাকলে পরে চাওয়া হবে। বাতিল: `/cancel`"
             )
         elif state["step"] == "code":
-            code = text.strip()
+            code = text.strip().replace("-", "").replace(" ", "")
             ok, err = await engine.complete_login(state["phone"], code)
             if not ok:
                 if err == "2FA_PASSWORD_REQUIRED":
